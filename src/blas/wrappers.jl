@@ -177,7 +177,6 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
 end
 # TODO: consider ROCVector and ROCStridedVector
 #nrm2(x::StridedVector) = nrm2(length(x), x, stride(x,1))
-nrm2(x::ROCArray) = nrm2(length(x), x, 1)
 
 ## asum
 for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
@@ -246,6 +245,32 @@ function axpy!(alpha::Ta,
     axpy!(length(rx), convert(T, alpha), pointer(x)+(first(rx)-1)*sizeof(T),
           step(rx), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
     y
+end
+
+## rot
+for (fname, elty, cty, sty) in ((:rocblas_srot,  :Float32,    :Float32, :Float32),
+                                (:rocblas_drot,  :Float64,    :Float64, :Float64),
+                                (:rocblas_crot,  :ComplexF32, :Float32, :ComplexF32),
+                                (:rocblas_csrot, :ComplexF32, :Float32, :Float32),
+                                (:rocblas_zrot,  :ComplexF64, :Float64, :ComplexF64),
+                                (:rocblas_zdrot, :ComplexF64, :Float64, :Float64))
+    @eval begin
+        function rot!(n::Integer,
+                      dx::ROCArray{$elty},
+                      incx::Integer,
+                      dy::ROCArray{$elty},
+                      incy::Integer,
+                      c::$cty,
+                      s::$sty)
+            wait!((dx,dy))
+            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
+                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
+                          Ptr{$elty}, Cint, Ref{$cty}, Ref{$sty}),
+                         handle(), n, dx, incx, dy, incy, c, s)
+            mark!((dx,dy),rocblas_get_stream(handle()))
+            dx, dy
+        end
+    end
 end
 
 #= FIXME

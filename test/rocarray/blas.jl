@@ -21,6 +21,67 @@ end
         _b = Array(Rb)
         @test isapprox(A*x, _b)
     end
+    @testset "axpy!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            y = rand(T, 8)
+            Rx = ROCArray(x)
+            Ry = ROCArray(y)
+            alpha = rand(T)
+            axpby!(alpha, x, y)
+            @test isapprox(alpha*x + y , Array(Ry))
+        end
+    end
+    @testset "axpby!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            y = rand(T, 8)
+            Rx = ROCArray(x)
+            Ry = ROCArray(y)
+            alpha = rand(T)
+            beta = rand(T)
+            axpby!(alpha, x, beta, y)
+            @test isapprox(alpha*x + beta*y , Array(Ry))
+        end
+    end
+    @testset "rotate!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            for cty in (real(T), T)
+                x = rand(T, 8)
+                y = rand(T, 8)
+                Rx = ROCArray(x)
+                Ry = ROCArray(y)
+                c = rand(cty)
+                s = rand(T)
+                rotate!(Rx, Ry, c, s)
+                @test isapprox(c*x + s*y, Array(Rx))
+                @test isapprox(-conj(s)*x + c*y, Array(Ry))
+            end
+        end
+    end
+    @testset "reflect!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            for cty in (real(T), T)
+                x = rand(T, 8)
+                y = rand(T, 8)
+                Rx = ROCArray(x)
+                Ry = ROCArray(y)
+                c = rand(cty)
+                s = rand(T)
+                reflect!(Rx, Ry, c, s)
+                @test isapprox(c*x + s*y, Array(Rx))
+                @test isapprox(conj(s)*x - c*y, Array(Ry))
+            end
+        end
+    end
+    @testset "norm" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            Rx = ROCArray(x)
+            nx = norm(Rx)
+            @test isapprox(nx, norm(x))
+        end
+    end
 end
 
 @testset "Level 1 BLAS" begin

@@ -43,12 +43,40 @@ function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Unio
     dotu(n, DX, 1, DY, 1)
 end
 
-# FIXME: LinearAlgebra.norm(x::ROCBLASArray) = nrm2(x)
+LinearAlgebra.norm(x::ROCArray{T}) where T<:ROCBLASFloat = nrm2(length(x), x, 1)
 LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
-    length(x)==length(y) || throw(DimensionMismatch(""))
-    axpy!(length(x), convert(T,alpha), x, 1, y, 1)
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch(""))
+    axpy!(lx, convert(T,alpha), x, 1, y, 1)
+end
+
+function LinearAlgebra.axpby!(alpha::Number, x::ROCArray{T}, beta::Number, y::ROCArray{T}) where T<:ROCBLASFloat
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch(""))
+    beta = isa(beta, Real) ? convert(real(T), beta) : convert(T, beta)
+    scal!(ly, beta, y, 1)
+    axpy!(lx, convert(T,alpha), x, 1, y, 1)
+end
+
+function LinearAlgebra.rotate!(x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number) where T<:CublasFloat
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch("rotate arguments have lengths $lx and $ly"))
+    rot!(lx, x, 1, y, 1, c, s)
+    x, y
+end
+
+function LinearAlgebra.reflect!(x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number) where T<:CublasFloat
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch("reflect arguments have lengths $lx and $ly"))
+    rot!(lx, x, 1, y, 1, c, s)
+    scal!(ly, -real(one(T)), y, 1)
+    x, y
 end
 
 #= FIXME
