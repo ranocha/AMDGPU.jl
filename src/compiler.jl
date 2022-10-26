@@ -49,7 +49,7 @@ end
 ## GPUCompiler interface
 
 struct ROCCompilerParams <: AbstractCompilerParams
-    device::ROCDevice
+    device::Union{ROCDevice,Nothing}
     global_hooks::NamedTuple
 end
 
