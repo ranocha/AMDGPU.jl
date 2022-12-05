@@ -128,10 +128,12 @@ function get_exception(
         ex_ring_ptr = unsafe_load(ex_ring_ptr_ptr)
 
         while (ex_ring_value = unsafe_load(ex_ring_ptr)).kern != 1
-            if ex_ring_value.kern == signal_handle && reinterpret(Ptr{UInt8}, ex_ring_value.ptr) != C_NULL
-                ex_ring_value_str = unsafe_string(
-                    reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
-                push!(ex_strings, ex_ring_value_str)
+            if ex_ring_value.kern == signal_handle
+                if reinterpret(Ptr{Cvoid}, ex_ring_value.ptr) != C_NULL
+                    ex_ring_value_str = unsafe_string(
+                        reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
+                    push!(ex_strings, ex_ring_value_str)
+                end
 
                 # FIXME: Write rest of entry first, then CAS 0 to kern field
                 entry = AMDGPU.Device.ExceptionEntry(
