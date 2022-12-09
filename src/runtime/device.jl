@@ -77,7 +77,7 @@ when one is not explicitly specified. May be changed with
 """
 function get_default_device()
     if !isassigned(DEFAULT_DEVICE)
-        error("No GPU devices detected!\nPlease consider rebuilding AMDGPU")
+        error("No GPU devices detected!")
     end
     DEFAULT_DEVICE[]
 end

@@ -177,7 +177,7 @@ function getinfo(object, query)
     @assert haskey(map, query)
     info_type = map[query]
     value = if info_type === Vector{UInt8}
-        info_type(undef, 64)
+        Base.zeros(UInt8, 64)
     else
         Ref{info_type}()
     end
