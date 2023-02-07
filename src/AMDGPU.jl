@@ -116,6 +116,7 @@ module Device
     include(joinpath("device", "gcn.jl"))
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "quirks.jl"))
+    include(joinpath("device", "random.jl"))
 end
 import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
 import .Device: ROCDeviceArray, AS, HostCall, hostcall!
