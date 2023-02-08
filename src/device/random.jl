@@ -12,32 +12,32 @@ import RandomNumbers
 # shared memory with the actual seed, per warp, loaded lazily or overridden by calling `seed!`
 @eval @inline function global_random_keys()
     ptr = Base.llvmcall(
-        $("""@global_random_keys = weak addrspace($(AS.Local)) global [32 x i32] zeroinitializer, align 32
+        $("""@__zeroinit_global_random_keys = external addrspace($(AS.Local)) global [32 x i32], align 32
              define i8 addrspace($(AS.Local))* @entry() #0 {
-                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Local))* @global_random_keys, i64 0, i64 0
+                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Local))* @__zeroinit_global_random_keys, i64 0, i64 0
                  %untyped_ptr = bitcast i32 addrspace($(AS.Local))* %ptr to i8 addrspace($(AS.Local))*
                  ret i8 addrspace($(AS.Local))* %untyped_ptr
              }
              attributes #0 = { alwaysinline }
           """, "entry"), LLVMPtr{UInt32, AS.Local}, Tuple{})
-    ROCDeviceArray{UInt32,1,AS.Local}(ptr, (32,))
+    ROCDeviceArray{UInt32,1,AS.Local}((32,), ptr)
 end
 
 # shared memory with per-warp counters, incremented when generating numbers
 @eval @inline function global_random_counters()
     ptr = Base.llvmcall(
-        $("""@global_random_counters = weak addrspace($(AS.Local)) global [32 x i32] zeroinitializer, align 32
+        $("""@__zeroinit_global_random_counters = external addrspace($(AS.Local)) global [32 x i32], align 32
              define i8 addrspace($(AS.Local))* @entry() #0 {
-                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Local))* @global_random_counters, i64 0, i64 0
+                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Local))* @__zeroinit_global_random_counters, i64 0, i64 0
                  %untyped_ptr = bitcast i32 addrspace($(AS.Local))* %ptr to i8 addrspace($(AS.Local))*
                  ret i8 addrspace($(AS.Local))* %untyped_ptr
              }
              attributes #0 = { alwaysinline }
           """, "entry"), LLVMPtr{UInt32, AS.Local}, Tuple{})
-    ROCDeviceArray{UInt32,1,AS.Local}(ptr, (32,))
+    ROCDeviceArray{UInt32,1,AS.Local}((32,), ptr)
 end
 
-@device_override Random.make_seed() = clock(UInt32)
+@device_override Random.make_seed() = Base.unsafe_trunc(UInt32, memrealtime())
 
 
 # generators
@@ -65,9 +65,9 @@ end
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
-    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
-                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
-    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
+    threadId = threadIdx().x + (threadIdx().y - Int32(1)) * blockDim().x +
+                               (threadIdx().z - Int32(1)) * blockDim().x * blockDim().y
+    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1
 
     if field === :seed
         @inbounds global_random_seed()[1]
@@ -76,17 +76,17 @@ end
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
-        blockId = blockIdx().x + (blockIdx().y - 1i32) * gridDim().x +
-                                 (blockIdx().z - 1i32) * gridDim().x * gridDim().y
-        globalId = threadId + (blockId - 1i32) * (blockDim().x * blockDim().y * blockDim().z)
+        blockId = blockIdx().x + (blockIdx().y - Int32(1)) * gridGroupDim().x +
+                                 (blockIdx().z - Int32(1)) * gridGroupDim().x * gridGroupDim().y
+        globalId = threadId + (blockId - Int32(1)) * (blockDim().x * blockDim().y * blockDim().z)
         globalId%UInt32
     end::UInt32
 end
 
 @inline function Base.setproperty!(rng::Philox2x32, field::Symbol, x)
-    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
-                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
-    warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
+    threadId = threadIdx().x + (threadIdx().y - Int32(1)) * blockDim().x +
+                               (threadIdx().z - Int32(1)) * blockDim().x * blockDim().y
+    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1
 
     if field === :key
         @inbounds global_random_keys()[warpId] = x
@@ -143,7 +143,7 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
     #       to a unique location so the duplicate writes are innocuous
     # XXX: what if this overflows? we can't increment ctr2. bump the key?
-    rng.ctr1 += 1i32
+    rng.ctr1 += Int32(1)
 
     # NOTE: it's too expensive to keep both numbers around in case the user only wanted one,
     #       so just make our 2x32 generator return 64-bit numbers by default.
