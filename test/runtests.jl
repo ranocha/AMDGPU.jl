@@ -77,6 +77,7 @@ push!(tests, "Device Functions" => ()->begin
     # FIXME segfaults in a weird way (on check_ir)
     # include("device/deps.jl")
     include("device/queries.jl")
+    include("device/random.jl")
 end)
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))

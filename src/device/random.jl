@@ -65,8 +65,8 @@ end
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
-    threadId = threadIdx().x + (threadIdx().y - Int32(1)) * blockDim().x +
-                               (threadIdx().z - Int32(1)) * blockDim().x * blockDim().y
+    threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
+                               (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
     warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1
 
     if field === :seed
@@ -76,16 +76,16 @@ end
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
-        blockId = blockIdx().x + (blockIdx().y - Int32(1)) * gridGroupDim().x +
-                                 (blockIdx().z - Int32(1)) * gridGroupDim().x * gridGroupDim().y
-        globalId = threadId + (blockId - Int32(1)) * (blockDim().x * blockDim().y * blockDim().z)
+        blockId = workgroupIdx().x + (workgroupIdx().y - Int32(1)) * gridGroupDim().x +
+                                 (workgroupIdx().z - Int32(1)) * gridGroupDim().x * gridGroupDim().y
+        globalId = threadId + (blockId - Int32(1)) * (workgroupDim().x * workgroupDim().y * workgroupDim().z)
         globalId%UInt32
     end::UInt32
 end
 
 @inline function Base.setproperty!(rng::Philox2x32, field::Symbol, x)
-    threadId = threadIdx().x + (threadIdx().y - Int32(1)) * blockDim().x +
-                               (threadIdx().z - Int32(1)) * blockDim().x * blockDim().y
+    threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
+                               (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
     warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1
 
     if field === :key
