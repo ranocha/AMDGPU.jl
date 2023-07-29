@@ -353,4 +353,10 @@ function __init__()
     end
 end
 
+function main()
+    a = ROCArray(ones(Float32, 16))
+    @show sum(a)
+    return
+end
+
 end

@@ -116,7 +116,7 @@ end
 
     @testset "Local memory" begin
         function f(X)
-            Y = @ROCStaticLocalArray(Float32, 16)
+            Y = @ROCStaticLocalArray(Float32, (16,))
             # N.B. Use unsafe accesses to avoid bounds checks from `--check-bounds=yes`
             unsafe_store!(Y.ptr, unsafe_load(X.ptr))
             return

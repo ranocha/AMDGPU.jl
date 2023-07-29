@@ -25,46 +25,56 @@ ROCDeviceArray
 # NOTE: we can't support the typical `tuple or series of integer` style
 # construction, because we're currently requiring a trailing pointer argument.
 
-struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
-    shape::Dims{N}
-    ptr::LLVMPtr{T,A}
-    len::Int
+struct ROCDeviceArray{T, N, A, I} <: AbstractArray{T, N}
+    shape::NTuple{N, I}
+    ptr::LLVMPtr{T, A}
+    len::I
 
-    # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    function ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N}
-        new(shape, ptr, prod(shape))
+    # Type-unstable, for use only from the host side.
+    function ROCDeviceArray{T,N,A}(shape::Tuple, ptr::LLVMPtr{T,A}) where {T,N,A}
+        maxsize = prod(shape) * sizeof(T)
+        if maxsize ≤ typemax(UInt32)
+            ROCDeviceArray{T,N,A,UInt32}(shape, ptr)
+        else
+            ROCDeviceArray{T,N,A,UInt64}(shape, ptr)
+        end
+    end
+
+    # For use in device code.
+    function ROCDeviceArray{T,N,A,I}(shape::Tuple, ptr::LLVMPtr{T,A}) where {T,N,A,I}
+        new{T,N,A,I}(map(I, shape), ptr, convert(I, prod(shape)))
     end
 end
 
-const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
-const ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
+const ROCDeviceVector = ROCDeviceArray{T,1,A,I} where {T,A,I}
+const ROCDeviceMatrix = ROCDeviceArray{T,2,A,I} where {T,A,I}
 
 # anything that's (secretly) backed by a ROCDeviceArray
 const AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,ROCDeviceArray,ROCDeviceArray{T,N,A}}}
 const AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
 const AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
 
-# outer constructors, non-parameterized
-ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceArray(len::Integer,              p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+# # outer constructors, non-parameterized
+# ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+# ROCDeviceArray(len::Integer,              p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
-# outer constructors, partially parameterized
-ROCDeviceArray{T}(dims::NTuple{N,<:Integer},   p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
-ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+# # outer constructors, partially parameterized
+# ROCDeviceArray{T}(dims::NTuple{N,<:Integer},   p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+# ROCDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+# ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+# ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
-# outer constructors, fully parameterized
-ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
-ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
+# # outer constructors, fully parameterized
+# ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
+# ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
 # getters
 
 Base.pointer(a::ROCDeviceArray) = a.ptr
 Base.pointer(a::ROCDeviceArray, i::Integer) =
-    pointer(a) + (i - 1) * Base.elsize(a) # TODO use _memory_offset(a, i)
+    pointer(a) + (i - UInt32(1)) * Base.elsize(a) # TODO use _memory_offset(a, i)
 
-Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:ROCDeviceArray{T}}) where T = sizeof(T)
 Base.size(g::ROCDeviceArray) = g.shape
 Base.length(g::ROCDeviceArray) = g.len
 
@@ -117,16 +127,15 @@ Base.show(io::IO, a::S) where S<:AnyROCDeviceArray =
 
 Base.show(io::IO, mime::MIME"text/plain", a::S) where S<:AnyROCDeviceArray = show(io, a)
 
-@inline function Base.unsafe_view(A::ROCDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    ptr = pointer(A) + (I[1].start-1)*sizeof(T)
-    len = I[1].stop - I[1].start + 1
-
-    return ROCDeviceArray(len, ptr)
+@inline function Base.unsafe_view(x::ROCDeviceVector{T,A,I}, ids::Vararg{Base.ViewIndex,1}) where {T,A,I}
+    ptr = pointer(x) + (ids[1].start - UInt32(1)) * sizeof(T)
+    len = ids[1].stop - ids[1].start + UInt32(1)
+    return ROCDeviceArray{T,1,A,I}((len,), ptr)
 end
 
-@inline function Base.iterate(A::ROCDeviceArray, i=1)
-    if (i % UInt) - 1 < length(A)
-        (@inbounds A[i], i + 1)
+@inline function Base.iterate(A::ROCDeviceArray{Any,Any,Any,I}, i = I(1)) where I
+    if (i % UInt) - I(1) < length(A)
+        (@inbounds A[i], i + I(1))
     else
         nothing
     end

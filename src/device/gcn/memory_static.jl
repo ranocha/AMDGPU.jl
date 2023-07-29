@@ -54,6 +54,7 @@ end
 
 @inline alloc_local(id, T, len, zeroinit=false) =
     alloc_special(Val{id}(), T, Val{AS.Local}(), Val{len}(), Val{zeroinit}())
+
 @inline alloc_scratch(id, T, len) =
     alloc_special(Val{id}(), T, Val{AS.Private}(), Val{len}(), Val{false}())
 
@@ -61,12 +62,16 @@ macro ROCStaticLocalArray(T, dims, zeroinit=true)
     zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
     @assert zeroinit isa Bool "@ROCStaticLocalArray requires a constant `zeroinit` argument"
 
-    @gensym id len
+    @gensym id len ptr N
     quote
-        $len = prod($(esc(dims)))
-        $ROCDeviceArray($(esc(dims)),
-            $alloc_local($(QuoteNode(Symbol(:ROCStaticLocalArray_, id))),
-            $(esc(T)), $len, $zeroinit))
+        let
+            $N = length($(esc(dims)))
+            $len = prod($(esc(dims)))
+            $ptr = $alloc_local(
+                $(QuoteNode(Symbol(:ROCStaticLocalArray_, id))),
+                $(esc(T)), $len, $zeroinit)
+            $ROCDeviceArray{$(esc(T)),$N,$(AS.Local),UInt32}($(esc(dims)), $ptr)
+        end
     end
 end
 
@@ -78,12 +83,18 @@ macro ROCDynamicLocalArray(T, dims, zeroinit=true)
     zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
     @assert zeroinit isa Bool "@ROCDynamicLocalArray requires a constant `zeroinit` argument"
 
-    @gensym id DA
+    if dims isa Integer
+        dims = (dims,)
+    end
+
+    @gensym id DA ptr N
     quote
         let
-            $DA = $ROCDeviceArray($(esc(dims)),
-                $alloc_local($(QuoteNode(Symbol(:ROCDynamicLocalArray_, id))),
-                $(esc(T)), 0, $zeroinit))
+            $N = length($(esc(dims)))
+            $ptr = $alloc_local(
+                $(QuoteNode(Symbol(:ROCDynamicLocalArray_, id))),
+                $(esc(T)), 0, $zeroinit)
+            $DA = $ROCDeviceArray{$(esc(T)),$N,$(AS.Local),UInt32}($(esc(dims)), $ptr)
             if $zeroinit
                 # Zeroinit doesn't work at the compiler level for dynamic LDS
                 # allocations, so zero it here

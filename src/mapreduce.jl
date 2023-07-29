@@ -10,7 +10,7 @@
     item::UInt32 = workitemIdx().x
 
     # Shared mem for a complete reduction.
-    shared = @ROCDynamicLocalArray(T, items, false)
+    shared = @ROCDynamicLocalArray(T, (items,), false)
     @inbounds shared[item] = val
 
     # Perform a reduction.
@@ -46,7 +46,7 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
     localIdx_reduce = workitemIdx().x
     localDim_reduce = workgroupDim().x
 
-    n_elements_other::UInt32 = length(Rother)
+    n_elements_other = length(Rother)
     groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, n_elements_other)
     groupDim_reduce = gridGroupDim().x ÷ n_elements_other
 
@@ -64,11 +64,11 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
 
         # reduce serially across chunks of input vector that don't fit in a group
         ireduce = localIdx_reduce + (groupIdx_reduce - UInt32(1)) * localDim_reduce
-        n_elements_reduce::UInt32 = length(Rreduce)
+        n_elements_reduce = length(Rreduce)
         while ireduce ≤ n_elements_reduce
             Ireduce = Rreduce[ireduce]
             J = Base.max(Iother, Ireduce)
-            val = op(val, f(_map_getindex(As, J)...))
+            # val = op(val, f(_map_getindex(As, J)...))
             ireduce += localDim_reduce * groupDim_reduce
         end
 
@@ -133,6 +133,14 @@ function GPUArrays.mapreducedim!(
     max_block_size = 256
     compute_shmem(items) = items * sizeof(T)
     max_shmem = max_block_size |> compute_items |> compute_shmem
+    @show typeof(f)
+    @show typeof(op)
+    @show typeof(init)
+    @show typeof(Rreduce)
+    @show typeof(Rother)
+    @show typeof(R′)
+    @show typeof(A)
+
     kernel = @roc launch=false partial_mapreduce_device(
         f, op, init, Rreduce, Rother, R′, A)
     kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
