@@ -43,7 +43,6 @@ function (ker::HIPKernel{F, TT})(
 ) where {F, TT}
     # Check if previous kernels threw an exception.
     AMDGPU.throw_if_exception(stream.device)
-    map(x -> println(typeof(AMDGPU.rocconvert(x))), args)
     call(ker, map(AMDGPU.rocconvert, args)...; stream, call_kwargs...)
 end
 

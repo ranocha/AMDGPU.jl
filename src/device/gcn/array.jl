@@ -54,22 +54,6 @@ const AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,R
 const AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
 const AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
 
-# # outer constructors, non-parameterized
-# ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-# ROCDeviceArray(len::Integer,              p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
-
-# # outer constructors, partially parameterized
-# ROCDeviceArray{T}(dims::NTuple{N,<:Integer},   p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-# ROCDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
-# ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-# ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
-
-# # outer constructors, fully parameterized
-# ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
-# ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
-
-# getters
-
 Base.pointer(a::ROCDeviceArray) = a.ptr
 Base.pointer(a::ROCDeviceArray, i::Integer) =
     pointer(a) + (i - UInt32(1)) * Base.elsize(a) # TODO use _memory_offset(a, i)

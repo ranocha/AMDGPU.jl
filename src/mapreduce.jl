@@ -68,7 +68,7 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
         while ireduce ≤ n_elements_reduce
             Ireduce = Rreduce[ireduce]
             J = Base.max(Iother, Ireduce)
-            # val = op(val, f(_map_getindex(As, J)...))
+            val = op(val, f(_map_getindex(As, J)...))
             ireduce += localDim_reduce * groupDim_reduce
         end
 
@@ -133,14 +133,6 @@ function GPUArrays.mapreducedim!(
     max_block_size = 256
     compute_shmem(items) = items * sizeof(T)
     max_shmem = max_block_size |> compute_items |> compute_shmem
-    @show typeof(f)
-    @show typeof(op)
-    @show typeof(init)
-    @show typeof(Rreduce)
-    @show typeof(Rother)
-    @show typeof(R′)
-    @show typeof(A)
-
     kernel = @roc launch=false partial_mapreduce_device(
         f, op, init, Rreduce, Rother, R′, A)
     kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
